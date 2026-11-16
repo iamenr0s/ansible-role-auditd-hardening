@@ -1,0 +1,63 @@
+---
+- name: Gather auditd state
+  ansible.builtin.include_tasks: facts.yml
+
+- name: Compare with desired state
+  ansible.builtin.set_fact:
+    __lh_au_findings: >-
+      {%- set out = [] -%}
+      {%- set unit = __lh_au_unit.status | default({}) -%}
+      {%- set rf = __lh_au_files.results[1] -%}
+      {%- if not __lh_au_installed -%}
+      {%- set _ = out.append({'key': 'package ' ~ __linux_hardening_auditd_package, 'expected': 'installed', 'actual': 'missing', 'fixable': true}) -%}
+      {%- else -%}
+      {%- if __lh_au_files.results[0].content is not defined -%}
+      {%- set _ = out.append({'key': linux_hardening_auditd_conf_file, 'expected': 'present', 'actual': 'missing', 'fixable': false}) -%}
+      {%- endif -%}
+      {%- for k, v in __lh_au_conf_want.items() if __lh_au_files.results[0].content is defined and (__lh_au_conf_have | from_json).get(k) != (v | string) -%}
+      {%- set _ = out.append({'key': 'auditd.conf ' ~ k, 'expected': v | string, 'actual': (__lh_au_conf_have | from_json).get(k, 'unset'), 'fixable': true}) -%}
+      {%- endfor -%}
+      {%- if rf.content is not defined or (rf.content | b64decode) != __lh_au_rules or __lh_au_rules_stat.stat.mode != '0640' -%}
+      {%- set _ = out.append({'key': 'rules file ' ~ linux_hardening_auditd_rules_file, 'expected': 'present (0640) with the desired rules', 'actual': 'missing or different', 'fixable': true}) -%}
+      {%- endif -%}
+      {%- if unit.get('UnitFileState', '') not in ['enabled', 'static'] -%}
+      {%- set _ = out.append({'key': 'auditd.service enabled', 'expected': 'enabled', 'actual': unit.get('UnitFileState', 'unknown'), 'fixable': true}) -%}
+      {%- endif -%}
+      {%- if __lh_au_kernel -%}
+      {%- if unit.get('ActiveState') != 'active' -%}
+      {%- set _ = out.append({'key': 'auditd.service active', 'expected': 'running', 'actual': unit.get('ActiveState', 'unknown'), 'fixable': true}) -%}
+      {%- endif -%}
+      {%- if __lh_au_need_load -%}
+      {%- set _ = out.append({'key': 'rules loaded in the kernel',
+                              'expected': 'all keys loaded' ~ (' and immutable (-e 2)' if linux_hardening_auditd_immutable | bool else ''),
+                              'actual': ('missing keys ' ~ __lh_au_missing_keys | join(',')) if __lh_au_missing_keys else 'merged audit.rules stale or not immutable' ~ ((' (locked by -e 2: reboot to change)') if __lh_au_locked else ''),
+                              'fixable': not __lh_au_locked}) -%}
+      {%- endif -%}
+      {%- else -%}
+      {%- set _ = out.append({'key': 'kernel audit interface', 'expected': 'reachable', 'actual': ('running in a container: the audit subsystem is the host kernel\'s' if __lh_au_container | bool else 'auditctl -s fails (no audit support): runtime state not checked') ~ ', so rules and daemon are not managed', 'fixable': false}) -%}
+      {%- endif -%}
+      {%- if 'audit=1' not in (__lh_au_cmdline.content | b64decode).split() -%}
+      {%- set _ = out.append({'key': 'kernel parameter audit=1', 'expected': 'present', 'actual': 'absent (reported only: bootloader; processes before auditd starts go unaudited)', 'fixable': false}) -%}
+      {%- endif -%}
+      {%- endif -%}
+      {{ out | to_json }}
+
+- name: Record findings
+  ansible.builtin.set_fact:
+    linux_hardening_auditd_findings: "{{ __lh_au_findings | from_json }}"
+
+- name: Report auditd_hardening result
+  ansible.builtin.debug:
+    msg: "{{ 'COMPLIANT' if linux_hardening_auditd_findings | length == 0 else linux_hardening_auditd_findings }}"
+
+# After remediation only fixable findings fail the run; the kernel parameter and a container need a human.
+- name: Fail on findings
+  ansible.builtin.fail:
+    msg: "auditd_hardening found {{ __lh_au_blocking | length }} deviation(s)."
+  vars:
+    __lh_au_blocking: >-
+      {{ linux_hardening_auditd_findings
+         if (linux_hardening_fail_on_error | bool) and not (__lh_au_audit_fatal | default(false))
+         else linux_hardening_auditd_findings | selectattr('fixable') | list
+         if (__lh_au_audit_fatal | default(false)) else [] }}
+  when: __lh_au_blocking | length > 0

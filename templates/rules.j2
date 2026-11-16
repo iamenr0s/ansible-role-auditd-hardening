@@ -1,0 +1,22 @@
+{{ ansible_managed | comment }}
+# iamenr0s.linux_hardening, auditd_hardening. Changes are overwritten.
+{% for w in __lh_au_watches %}
+-w {{ w.path }} -p {{ w.perms }} -k {{ w.key }}
+{% endfor %}
+{% for arch in __linux_hardening_auditd_archs %}
+{% if 'time-change' not in linux_hardening_auditd_exclude_groups %}
+-a always,exit -F arch={{ arch }} -S adjtimex -S settimeofday -S clock_settime -k time-change
+{% endif %}
+{% if 'system-locale' not in linux_hardening_auditd_exclude_groups %}
+-a always,exit -F arch={{ arch }} -S sethostname -S setdomainname -k system-locale
+{% endif %}
+{% if 'modules' not in linux_hardening_auditd_exclude_groups %}
+-a always,exit -F arch={{ arch }} -S init_module -S finit_module -S delete_module -k modules
+{% endif %}
+{% endfor %}
+{% for r in linux_hardening_auditd_extra_rules %}
+{{ r }}
+{% endfor %}
+{% if linux_hardening_auditd_immutable | bool %}
+-e 2
+{% endif %}

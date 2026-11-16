@@ -1,0 +1,38 @@
+---
+# Our own selection from common hardening guidance. NOT a verified CIS mapping (all entries unmapped).
+__linux_hardening_auditd_package: "{{ 'audit' if ansible_facts['os_family'] == 'RedHat' else 'auditd' }}"
+__linux_hardening_auditd_conf_base:
+  max_log_file: 32
+  max_log_file_action: keep_logs
+  num_logs: 5
+  space_left_action: syslog
+  # Dropping to single-user mode when the disk is nearly full is deliberate: auditing must not silently stop.
+  admin_space_left_action: single
+# File watches. Paths that do not exist on the host are left out (auditctl refuses a watch on a missing path).
+__linux_hardening_auditd_watches: >-
+  {{ [{'group': 'identity', 'path': '/etc/group', 'perms': 'wa', 'key': 'identity'},
+      {'group': 'identity', 'path': '/etc/passwd', 'perms': 'wa', 'key': 'identity'},
+      {'group': 'identity', 'path': '/etc/gshadow', 'perms': 'wa', 'key': 'identity'},
+      {'group': 'identity', 'path': '/etc/shadow', 'perms': 'wa', 'key': 'identity'},
+      {'group': 'identity', 'path': '/etc/security/opasswd', 'perms': 'wa', 'key': 'identity'},
+      {'group': 'sudoers', 'path': '/etc/sudoers', 'perms': 'wa', 'key': 'scope'},
+      {'group': 'sudoers', 'path': '/etc/sudoers.d', 'perms': 'wa', 'key': 'scope'},
+      {'group': 'logins', 'path': '/var/log/lastlog', 'perms': 'wa', 'key': 'logins'},
+      {'group': 'logins', 'path': '/var/run/faillock', 'perms': 'wa', 'key': 'logins'},
+      {'group': 'session', 'path': '/var/run/utmp', 'perms': 'wa', 'key': 'session'},
+      {'group': 'session', 'path': '/var/log/wtmp', 'perms': 'wa', 'key': 'session'},
+      {'group': 'session', 'path': '/var/log/btmp', 'perms': 'wa', 'key': 'session'},
+      {'group': 'system-locale', 'path': '/etc/issue', 'perms': 'wa', 'key': 'system-locale'},
+      {'group': 'system-locale', 'path': '/etc/issue.net', 'perms': 'wa', 'key': 'system-locale'},
+      {'group': 'system-locale', 'path': '/etc/hosts', 'perms': 'wa', 'key': 'system-locale'},
+      {'group': 'time-change', 'path': '/etc/localtime', 'perms': 'wa', 'key': 'time-change'},
+      {'group': 'modules', 'path': '/sbin/insmod', 'perms': 'x', 'key': 'modules'},
+      {'group': 'modules', 'path': '/sbin/rmmod', 'perms': 'x', 'key': 'modules'},
+      {'group': 'modules', 'path': '/sbin/modprobe', 'perms': 'x', 'key': 'modules'}]
+     + ([{'group': 'mac-policy', 'path': '/etc/selinux', 'perms': 'wa', 'key': 'MAC-policy'}]
+        if ansible_facts['os_family'] == 'RedHat' else
+        [{'group': 'mac-policy', 'path': '/etc/apparmor', 'perms': 'wa', 'key': 'MAC-policy'},
+         {'group': 'mac-policy', 'path': '/etc/apparmor.d', 'perms': 'wa', 'key': 'MAC-policy'}]) }}
+# Syscall rules are written for these architectures only (b32 on a 64-bit kernel needs the compat ABI).
+__linux_hardening_auditd_archs: >-
+  {{ ['b64', 'b32'] if ansible_facts['architecture'] == 'x86_64' else ['b64'] if ansible_facts['architecture'] == 'aarch64' else [] }}

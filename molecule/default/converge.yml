@@ -1,0 +1,17 @@
+---
+# A container has no audit netlink socket, so this covers packages, auditd.conf, the rules file and enable.
+# Loading rules and the running daemon are proven in the vagrant scenario.
+- name: Converge (remediate)
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Remediate
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: remediate
+        linux_hardening_confirm_remediation: true
+        linux_hardening_auditd_conf: {num_logs: 7}
+        linux_hardening_auditd_exclude_groups: [session]
+        linux_hardening_auditd_extra_rules: ["-w /etc/motd -p wa -k banner"]

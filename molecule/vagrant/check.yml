@@ -1,0 +1,33 @@
+---
+# Imported several times with different vars: what the kernel has loaded right now.
+- name: Check the audit state in the kernel
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    __keys: [identity, scope, time-change, system-locale, modules]
+    __enabled: '1'
+  tasks:
+    - name: Loaded rules
+      ansible.builtin.command: auditctl -l
+      register: __rules
+      changed_when: false
+
+    - name: Audit status
+      ansible.builtin.command: auditctl -s
+      register: __status
+      changed_when: false
+
+    - name: Unit state
+      ansible.builtin.systemd:
+        name: auditd
+      register: __unit
+
+    - name: All keys are loaded, the mode is right and the daemon runs
+      ansible.builtin.assert:
+        that:
+          - "__keys | difference(__rules.stdout | regex_findall('(?:-k |key=)(\\S+)')) | length == 0"
+          - "(__status.stdout | regex_findall('(?m)^enabled (\\d)') | first) == __enabled"
+          - __unit.status.ActiveState == 'active'
+          - __unit.status.UnitFileState in ['enabled', 'static']
+        quiet: true

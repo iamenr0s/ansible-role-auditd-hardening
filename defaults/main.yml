@@ -1,0 +1,23 @@
+---
+# --- Shared collection variables ---
+linux_hardening_mode: audit                    # audit (read-only) | remediate
+linux_hardening_confirm_remediation: false     # must be true for any change
+linux_hardening_backup: true
+linux_hardening_verify: true
+linux_hardening_fail_on_error: true
+
+# --- auditd_hardening (EL / Fedora / Debian / Ubuntu; other families are skipped) ---
+linux_hardening_auditd_enabled: true
+linux_hardening_auditd_conf_file: /etc/audit/auditd.conf
+linux_hardening_auditd_rules_file: /etc/audit/rules.d/99-linux-hardening.rules
+
+# Change or add auditd.conf settings {key: value}; the built-in set is in vars/main.yml.
+linux_hardening_auditd_conf: {}
+# Rule groups to leave out: time-change, identity, sudoers, logins, session, system-locale, mac-policy, modules.
+linux_hardening_auditd_exclude_groups: []
+# Extra raw rule lines appended to the managed rules file.
+linux_hardening_auditd_extra_rules: []
+
+# Append "-e 2": the loaded rules can then not be changed until the next reboot (not even by this role).
+# Anything wrong in the rules stays active until you reboot, so enable it last, once the rules are proven.
+linux_hardening_auditd_immutable: false

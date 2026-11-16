@@ -1,0 +1,47 @@
+---
+# audit: read-only. remediate: packages, auditd.conf, rules file, service, rule load. Never reboots.
+- name: Run auditd_hardening
+  when: linux_hardening_auditd_enabled | bool
+  block:
+    - name: Validate linux_hardening_mode
+      ansible.builtin.assert:
+        that: linux_hardening_mode in ['audit', 'remediate']
+        fail_msg: "linux_hardening_mode must be 'audit' or 'remediate', got '{{ linux_hardening_mode }}'"
+        quiet: true
+
+    - name: Skip other OS families
+      ansible.builtin.set_fact:
+        linux_hardening_auditd_findings: []
+      when: ansible_facts['os_family'] not in ['RedHat', 'Debian']
+
+    - name: Say why the role was skipped
+      ansible.builtin.debug:
+        msg: "auditd_hardening supports the RedHat and Debian families; {{ ansible_facts['os_family'] }} is skipped."
+      when: ansible_facts['os_family'] not in ['RedHat', 'Debian']
+
+    - name: Run on a supported family
+      when: ansible_facts['os_family'] in ['RedHat', 'Debian']
+      block:
+        - name: Audit (read-only)
+          ansible.builtin.include_tasks: audit.yml
+          when: linux_hardening_mode == 'audit'
+
+        - name: Remediate
+          when: linux_hardening_mode == 'remediate'
+          block:
+            - name: Require explicit remediation confirmation
+              ansible.builtin.assert:
+                that: linux_hardening_confirm_remediation | bool
+                fail_msg: >-
+                  Remediation installs auditd, rewrites its configuration and loads audit rules. Set
+                  linux_hardening_confirm_remediation: true to proceed (run with linux_hardening_mode: audit to preview).
+                quiet: true
+
+            - name: Configure
+              ansible.builtin.include_tasks: configure.yml
+
+            - name: Verify effective configuration
+              ansible.builtin.include_tasks: audit.yml
+              vars:
+                __lh_au_audit_fatal: true
+              when: linux_hardening_verify | bool

@@ -1,0 +1,112 @@
+---
+- name: Check after converge
+  ansible.builtin.import_playbook: check.yml
+
+- name: A watched change produces an audit event
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Touch a watched file
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "127.0.0.9 audit-probe"
+
+    - name: Find the event
+      ansible.builtin.command: ausearch -k system-locale -i
+      register: __ev
+      retries: 10
+      delay: 2
+      until: "'/etc/hosts' in __ev.stdout"
+      changed_when: false
+
+    - name: Remove the probe
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "127.0.0.9 audit-probe"
+        state: absent
+
+- name: Role audit is clean apart from what needs the bootloader
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Audit
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: audit
+        linux_hardening_fail_on_error: false
+
+    - name: Nothing fixable, and only the audit=1 report remains
+      ansible.builtin.assert:
+        that:
+          - linux_hardening_auditd_findings | selectattr('fixable') | list | length == 0
+          - linux_hardening_auditd_findings | map(attribute='key') | difference(['kernel parameter audit=1']) | length == 0
+        quiet: true
+
+- name: Reboot
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    # See mount_hardening: the post-reboot delay avoids polling sshd during early boot on this 1-CPU box.
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 45
+        connect_timeout: 30
+
+- name: The rules come back from the rules file after a reboot
+  ansible.builtin.import_playbook: check.yml
+
+- name: Make the rules immutable
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Remediate with -e 2
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: remediate
+        linux_hardening_confirm_remediation: true
+        linux_hardening_auditd_immutable: true
+
+- name: Immutable now
+  ansible.builtin.import_playbook: check.yml
+  vars:
+    __enabled: '2'
+
+- name: A rule change while locked is reported, not forced
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Remediate with one more rule
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: remediate
+        linux_hardening_confirm_remediation: true
+        linux_hardening_auditd_immutable: true
+        linux_hardening_auditd_extra_rules: ["-w /etc/motd -p wa -k banner"]
+
+    - name: The finding says a reboot is needed and is not fixable
+      ansible.builtin.assert:
+        that:
+          - linux_hardening_auditd_findings | selectattr('key', 'eq', 'rules loaded in the kernel') | list | length == 1
+          - (linux_hardening_auditd_findings | selectattr('key', 'eq', 'rules loaded in the kernel') | first).fixable is false
+        quiet: true
+
+    - name: Reboot to apply it
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        post_reboot_delay: 45
+        connect_timeout: 30
+
+- name: Still immutable after the reboot, with the new rule
+  ansible.builtin.import_playbook: check.yml
+  vars:
+    __enabled: '2'
+    __keys: [identity, scope, time-change, system-locale, modules, banner]

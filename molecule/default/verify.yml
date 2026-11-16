@@ -1,0 +1,37 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Read auditd.conf and the rules
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop: [/etc/audit/auditd.conf, /etc/audit/rules.d/99-linux-hardening.rules]
+      register: __f
+
+    - name: Check the content
+      ansible.builtin.assert:
+        that:
+          - "(__f.results[0].content | b64decode) is search('(?m)^num_logs = 7$')"
+          - "(__f.results[0].content | b64decode) is search('(?m)^admin_space_left_action = single$')"
+          - "'-k identity' in (__f.results[1].content | b64decode)"
+          - "'-k session' not in (__f.results[1].content | b64decode)"
+          - "'-w /etc/motd -p wa -k banner' in (__f.results[1].content | b64decode)"
+          - "'-e 2' not in (__f.results[1].content | b64decode)"
+        quiet: true
+
+    - name: The only unfixable findings are the ones a container cannot satisfy
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/../.."  # noqa: role-name[path]
+      vars:
+        linux_hardening_mode: audit
+        linux_hardening_fail_on_error: false
+        linux_hardening_auditd_conf: {num_logs: 7}
+        linux_hardening_auditd_exclude_groups: [session]
+        linux_hardening_auditd_extra_rules: ["-w /etc/motd -p wa -k banner"]
+
+    - name: No fixable finding is left
+      ansible.builtin.assert:
+        that: linux_hardening_auditd_findings | selectattr('fixable') | list | length == 0
+        quiet: true
