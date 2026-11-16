@@ -1,4 +1,4 @@
-[![Molecule](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml/badge.svg)](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml) ![Ansible Role](https://img.shields.io/ansible/role/d/iamenr0s/ansible_role_auditd_hardening) [![CodeFactor](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening/badge)](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening)
+[![Molecule](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml/badge.svg)](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml) ![Ansible Role](https://img.shields.io/ansible/role/d/iamenr0s/auditd_hardening) [![CodeFactor](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening/badge)](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening)
 
 # Ansible Role: Auditd Hardening
 
@@ -93,4 +93,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 Author: iamenr0s
 
-Galaxy: `iamenr0s.ansible_role_auditd_hardening`
+Galaxy: `iamenr0s.auditd_hardening`
