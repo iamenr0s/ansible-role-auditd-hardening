@@ -1,5 +1,5 @@
 ---
-- name: Install the audit package (Debian family)
+- name: configure | Install the audit package (Debian family)
   ansible.builtin.apt:
     name: "{{ __linux_hardening_auditd_package }}"
     state: present
@@ -7,16 +7,16 @@
     cache_valid_time: 3600
   when: ansible_facts['os_family'] == 'Debian'
 
-- name: Install the audit package (RedHat family)
+- name: configure | Install the audit package (RedHat family)
   ansible.builtin.dnf:
     name: "{{ __linux_hardening_auditd_package }}"
     state: present
   when: ansible_facts['os_family'] == 'RedHat'
 
-- name: Gather auditd state
+- name: configure | Gather auditd state
   ansible.builtin.include_tasks: facts.yml
 
-- name: Write auditd.conf settings
+- name: configure | Write auditd.conf settings
   ansible.builtin.lineinfile:
     path: "{{ linux_hardening_auditd_conf_file }}"
     regexp: "^\\s*{{ item.key | regex_escape }}\\s*="
@@ -28,7 +28,7 @@
   when: __lh_au_files.results[0].content is defined
   register: __lh_au_conf_written
 
-- name: Write the rules file
+- name: configure | Write the rules file
   ansible.builtin.copy:
     content: "{{ __lh_au_rules }}"
     dest: "{{ linux_hardening_auditd_rules_file }}"
@@ -38,37 +38,37 @@
     backup: "{{ linux_hardening_backup | bool }}"
   register: __lh_au_rules_written
 
-- name: Enable the service
+- name: configure | Enable the service
   ansible.builtin.systemd:
     name: auditd
     enabled: true
 
 # Only where the kernel accepts audit control: in a container the daemon cannot open its netlink socket.
-- name: Start the service
+- name: configure | Start the service
   ansible.builtin.systemd:
     name: auditd
     state: started
   when: __lh_au_kernel | bool
 
-- name: Query the auditd unit
+- name: configure | Query the auditd unit
   ansible.builtin.systemd:
     name: auditd
   register: __lh_au_unit
 
 # auditd re-reads auditd.conf on SIGHUP. Its unit has no reload action and RHEL refuses a manual restart.
-- name: Reload auditd after a configuration change
+- name: configure | Reload auditd after a configuration change
   ansible.builtin.command: systemctl kill --signal=HUP auditd  # noqa: command-instead-of-module
   changed_when: true
   when:
     - __lh_au_conf_written is changed
     - __lh_au_unit.status.ActiveState | default('') == 'active'
 
-- name: Re-read what the kernel has loaded
+- name: configure | Re-read what the kernel has loaded
   ansible.builtin.include_tasks: facts.yml
 
 # augenrules merges rules.d into audit.rules and loads it. When -e 2 is already active the kernel refuses it;
 # that case is a (non-fixable) finding, not an error.
-- name: Load the rules
+- name: configure | Load the rules
   ansible.builtin.command: augenrules --load
   when:
     - __lh_au_need_load | bool

@@ -1,9 +1,9 @@
 ---
 # Read-only. Sets the __lh_au_* facts the audit and configure steps compare with.
-- name: Gather package facts
+- name: facts | Gather package facts
   ansible.builtin.package_facts:
 
-- name: Look at the watch paths
+- name: facts | Look at the watch paths
   ansible.builtin.stat:
     path: "{{ item.path }}"
     get_checksum: false
@@ -13,28 +13,28 @@
   register: __lh_au_watch_stats
 
 # Only watches on paths that exist: auditctl rejects a watch on a missing path and would abort the whole load.
-- name: Keep the watches that can be loaded
+- name: facts | Keep the watches that can be loaded
   ansible.builtin.set_fact:
     __lh_au_watches: "{{ __lh_au_watch_stats.results | selectattr('stat.exists') | map(attribute='item') | list }}"
 
-- name: Render the rules file
+- name: facts | Render the rules file
   ansible.builtin.set_fact:
     __lh_au_rules: "{{ lookup('ansible.builtin.template', 'rules.j2') }}"
     __lh_au_installed: "{{ __linux_hardening_auditd_package in ansible_facts['packages'] }}"
 
-- name: Read auditd.conf and the rules file
+- name: facts | Read auditd.conf and the rules file
   ansible.builtin.slurp:
     src: "{{ item }}"
   loop: ["{{ linux_hardening_auditd_conf_file }}", "{{ linux_hardening_auditd_rules_file }}"]
   register: __lh_au_files
   failed_when: false
 
-- name: Stat the rules file
+- name: facts | Stat the rules file
   ansible.builtin.stat:
     path: "{{ linux_hardening_auditd_rules_file }}"
   register: __lh_au_rules_stat
 
-- name: Ask the kernel (needs the audit netlink socket; absent in containers)
+- name: facts | Ask the kernel (needs the audit netlink socket; absent in containers)
   ansible.builtin.command: "{{ item }}"
   loop: [auditctl -s, auditctl -l, augenrules --check]
   register: __lh_au_ctl
@@ -42,18 +42,18 @@
   failed_when: false
   when: __lh_au_installed | bool
 
-- name: Query the auditd unit
+- name: facts | Query the auditd unit
   ansible.builtin.systemd:
     name: auditd
   register: __lh_au_unit
   failed_when: false
 
-- name: Read the kernel command line
+- name: facts | Read the kernel command line
   ansible.builtin.slurp:
     src: /proc/cmdline
   register: __lh_au_cmdline
 
-- name: Work out the audit state
+- name: facts | Work out the audit state
   ansible.builtin.set_fact:
     __lh_au_conf_have: >-
       {%- set d = {} -%}
@@ -73,12 +73,12 @@
       {{ (__lh_au_ctl.results[1].stdout | default('') | regex_findall('(?:-k |key=)(\S+)')) if (__lh_au_installed | bool) else [] }}
     __lh_au_stale: "{{ (__lh_au_installed | bool) and __lh_au_ctl.results[2].rc | default(0) != 0 }}"
 
-- name: Work out which rules are missing from the kernel
+- name: facts | Work out which rules are missing from the kernel
   ansible.builtin.set_fact:
     __lh_au_wanted_keys: "{{ __lh_au_rules | regex_findall('(?m)^-.* -k (\\S+)$') | unique }}"
     __lh_au_locked: "{{ __lh_au_enabled == '2' }}"
 
-- name: Compare the keys
+- name: facts | Compare the keys
   ansible.builtin.set_fact:
     __lh_au_missing_keys: "{{ __lh_au_wanted_keys | difference(__lh_au_loaded_keys) }}"
     __lh_au_need_load: >-
