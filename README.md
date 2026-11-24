@@ -1,4 +1,4 @@
-[![Molecule](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml/badge.svg)](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml) ![Ansible Role](https://img.shields.io/ansible/role/d/iamenr0s/ansible_role_auditd_hardening) [![CodeFactor](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening/badge)](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening)
+[![Molecule](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml/badge.svg)](https://github.com/iamenr0s/ansible-role-auditd-hardening/actions/workflows/molecule.yml) ![Ansible Role](https://img.shields.io/ansible/role/d/iamenr0s/auditd_hardening) [![CodeFactor](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening/badge)](https://www.codefactor.io/repository/github/iamenr0s/ansible-role-auditd-hardening)
 
 # Ansible Role: Auditd Hardening
 
@@ -29,11 +29,33 @@ Groups (drop with `linux_hardening_auditd_exclude_groups`): `identity` (passwd, 
 ## Modes
 `audit` (default) is read-only and sets `linux_hardening_auditd_findings` (`key, expected, actual, fixable`). `remediate` needs `linux_hardening_confirm_remediation: true`; after it only fixable findings fail the run.
 
+## Role Variables
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `linux_hardening_mode` | str | `audit` | audit is read-only. Choices: `audit`, `remediate`. |
+| `linux_hardening_confirm_remediation` | bool | `false` | Must be true before remediate changes anything. |
+| `linux_hardening_backup` | bool | `true` | Back up auditd.conf and the rules file when they change. |
+| `linux_hardening_verify` | bool | `true` | Re-audit after remediation. |
+| `linux_hardening_fail_on_error` | bool | `true` | Fail the play when audit finds deviations. |
+| `linux_hardening_auditd_enabled` | bool | `true` | Run the role. |
+| `linux_hardening_auditd_conf_file` | path | `/etc/audit/auditd.conf` | auditd.conf to manage. |
+| `linux_hardening_auditd_rules_file` | path | `/etc/audit/rules.d/99-linux-hardening.rules` | Managed rules file. |
+| `linux_hardening_auditd_conf` | dict | `{}` | auditd.conf settings {key: value} over the built-in set. |
+| `linux_hardening_auditd_exclude_groups` | list of str | `[]` | Rule groups to leave out. |
+| `linux_hardening_auditd_extra_rules` | list of str | `[]` | Raw rule lines appended to the managed file. |
+| `linux_hardening_auditd_immutable` | bool | `false` | Append -e 2: rules cannot change until reboot. |
+
+**Idempotent:** yes. A second `remediate` run reports no changes (the Molecule `idempotence` step checks this).
+
+**Check mode:** `remediate` with `--check --diff` shows what would change without writing anything; the post-remediation re-audit is skipped in check mode.
+
 ## Example
 ```yaml
 - hosts: all
+  become: true
   roles:
-    - role: iamenr0s.linux_hardening.auditd_hardening
+    - role: iamenr0s.auditd_hardening
       vars:
         linux_hardening_mode: remediate
         linux_hardening_confirm_remediation: true
