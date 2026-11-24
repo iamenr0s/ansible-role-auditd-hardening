@@ -1,0 +1,12 @@
+---
+- name: Prepare
+  hosts: all
+  become: false
+  gather_facts: true
+  tasks:
+    # Container images ship without apt lists. A real host has them, and the check step (--check)
+    # cannot fetch them, so the dry run would not find the packages to install.
+    - name: Refresh the apt cache
+      ansible.builtin.apt:
+        update_cache: true
+      when: ansible_facts['os_family'] == 'Debian'
